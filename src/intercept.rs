@@ -122,3 +122,69 @@ pub unsafe extern "C" fn close(fd: c_int) -> c_int {
     let f: unsafe extern "C" fn(c_int) -> c_int = std::mem::transmute(sym);
     f(fd)
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mmap(
+    addr: *mut c_void,
+    length: size_t,
+    prot: c_int,
+    flags: c_int,
+    fd: c_int,
+    offset: off_t,
+) -> *mut c_void {
+    let real_mmap: unsafe extern "C" fn(
+        *mut c_void,
+        size_t,
+        c_int,
+        c_int,
+        c_int,
+        off_t,
+    ) -> *mut c_void = {
+        let sym = libc::dlsym(libc::RTLD_NEXT, c"mmap".as_ptr());
+        std::mem::transmute(sym)
+    };
+
+    if !is_magic(fd) {
+        return real_mmap(addr, length, prot, flags, fd, offset);
+    }
+
+    let (url, readahead) = match crate::files().lock().unwrap().get(&fd) {
+        Some(s) => (s.url.clone(), s.readahead),
+        None => return real_mmap(addr, length, prot, flags, fd, offset),
+    };
+
+    let ptr = real_mmap(
+        addr,
+        length,
+        libc::PROT_READ | libc::PROT_WRITE,
+        libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+        -1,
+        0,
+    );
+
+    if ptr == libc::MAP_FAILED {
+        return libc::MAP_FAILED;
+    }
+
+    if let Err(e) = crate::uffd::register(ptr, length, url, readahead) {
+        if !crate::quiet() {
+            eprintln!("[smugmap] uffd register failed: {e}");
+        }
+        // pread() fallback still works for non-mmap access
+    }
+
+    if let Some(state) = crate::files().lock().unwrap().get_mut(&fd) {
+        state.mmap_ptr = ptr as usize;
+        state.mmap_len = length;
+    }
+
+    ptr
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn munmap(addr: *mut c_void, length: size_t) -> c_int {
+    crate::uffd::unregister(addr, length);
+    let sym = libc::dlsym(libc::RTLD_NEXT, c"munmap".as_ptr());
+    let f: unsafe extern "C" fn(*mut c_void, size_t) -> c_int = std::mem::transmute(sym);
+    f(addr, length)
+}
