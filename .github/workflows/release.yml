@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            artifact: smugmap-x86_64-linux.so
+          - target: aarch64-unknown-linux-gnu
+            artifact: smugmap-aarch64-linux.so
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Build
+        run: cross build --release --target ${{ matrix.target }}
+      - name: Rename artifact
+        run: cp target/${{ matrix.target }}/release/libsmugmap.so ${{ matrix.artifact }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            smugmap-x86_64-linux.so/smugmap-x86_64-linux.so
+            smugmap-aarch64-linux.so/smugmap-aarch64-linux.so
+          generate_release_notes: true
