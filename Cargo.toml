@@ -1,0 +1,29 @@
+[package]
+name = "smugmap"
+version = "0.1.0"
+edition = "2021"
+description = "Demand-page S3 files into any binary via LD_PRELOAD — works where FUSE can't"
+license = "MIT"
+repository = "https://github.com/YOUR_USER/smugmap"
+keywords = ["s3", "mmap", "ld-preload", "lambda", "streaming"]
+categories = ["filesystem", "os"]
+
+[lib]
+name = "smugmap"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "selfcheck"
+path = "test/selfcheck.rs"
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = "2"
+glob = "0.3"
+userfaultfd = "0.8"
+
+[profile.release]
+strip = true
+opt-level = "s"
