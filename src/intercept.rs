@@ -16,6 +16,7 @@ unsafe fn real_open(path: *const libc::c_char, flags: c_int, mode: mode_t) -> c_
 }
 
 // no varargs (stable Rust), mode defaults to 0o666 on passthrough
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int {
     let path_str = match CStr::from_ptr(path).to_str() {
@@ -57,6 +58,7 @@ pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int 
     fd
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
     if is_magic(fd) {
@@ -75,6 +77,7 @@ pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
     f(fd, stat)
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn pread(
     fd: c_int,
@@ -115,6 +118,7 @@ pub unsafe extern "C" fn pread(
     }
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn close(fd: c_int) -> c_int {
     crate::files().lock().unwrap().remove(&fd);
@@ -123,6 +127,7 @@ pub unsafe extern "C" fn close(fd: c_int) -> c_int {
     f(fd)
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mmap(
     addr: *mut c_void,
@@ -181,6 +186,7 @@ pub unsafe extern "C" fn mmap(
     ptr
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn munmap(addr: *mut c_void, length: size_t) -> c_int {
     crate::uffd::unregister(addr, length);

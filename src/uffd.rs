@@ -60,8 +60,11 @@ mod linux {
     }
 
     pub fn unregister(ptr: *mut libc::c_void, len: usize) {
-        REGIONS.lock().unwrap().remove(&(ptr as usize));
-        let _ = unsafe { uffd().unregister(ptr, len) };
+        // Only unregister if uffd was already initialized — avoids eager init on munmap
+        if let Some(u) = UFFD.get() {
+            REGIONS.lock().unwrap().remove(&(ptr as usize));
+            let _ = unsafe { u.0.unregister(ptr, len) };
+        }
     }
 
     fn fault_loop() {
