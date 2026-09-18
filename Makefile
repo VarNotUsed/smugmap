@@ -1,4 +1,4 @@
-.PHONY: build test test-linux clean clean-linux install
+.PHONY: build test test-linux docker-build clean clean-linux install
 
 INSTALL_DIR ?= /usr/local/lib
 
@@ -13,13 +13,16 @@ test:
 		LD_PRELOAD=target/debug/libsmugmap.so \
 		cargo run --bin selfcheck
 
-test-linux:
+docker-build:
+	docker build -t smugmap-dev -f Dockerfile.dev .
+
+test-linux: docker-build
 	docker run --rm \
 		-v "$(CURDIR):/smugmap" \
 		-v smugmap-cargo-cache:/usr/local/cargo/registry \
 		-v smugmap-target:/smugmap/target \
 		-w /smugmap \
-		rust:1.98 \
+		smugmap-dev \
 		bash -c "cargo test && cargo build && SMUGMAP_CONFIG=/tmp/smugmap-test.json LD_PRELOAD=target/debug/libsmugmap.so cargo run --bin selfcheck"
 
 clean-linux:
