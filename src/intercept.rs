@@ -8,8 +8,14 @@ fn is_magic(fd: i32) -> bool {
     fd >= crate::MAGIC_FD_BASE
 }
 
+unsafe fn real_openat(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
+    let sym = libc::dlsym(libc::RTLD_NEXT, c"openat".as_ptr());
+    let f: unsafe extern "C" fn(c_int, *const libc::c_char, c_int) -> c_int =
+        std::mem::transmute(sym);
+    f(dirfd, path, flags)
+}
+
 unsafe fn real_open(path: *const libc::c_char, flags: c_int, mode: mode_t) -> c_int {
-    // Use open64 — the symbol Rust stdlib actually calls on 64-bit Linux
     let sym = libc::dlsym(libc::RTLD_NEXT, c"open64".as_ptr());
     let f: unsafe extern "C" fn(*const libc::c_char, c_int, mode_t) -> c_int =
         std::mem::transmute(sym);
@@ -56,8 +62,8 @@ unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
     fd
 }
 
-// no varargs (stable Rust), mode defaults to 0o666 on passthrough
-// Both open and open64 intercepted — Rust stdlib calls open64 on 64-bit Linux
+// Intercept all open variants — Rust stdlib on Linux calls openat(AT_FDCWD,...)
+// open/open64 for legacy callers, openat/openat64 for modern glibc/Rust stdlib
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int {
@@ -67,6 +73,25 @@ pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn open64(path: *const libc::c_char, flags: c_int) -> c_int {
+    intercept_open(path, flags)
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn openat(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
+    // Only intercept absolute paths opened relative to CWD; pass through fd-relative opens
+    if dirfd != libc::AT_FDCWD {
+        return real_openat(dirfd, path, flags);
+    }
+    intercept_open(path, flags)
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn openat64(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
+    if dirfd != libc::AT_FDCWD {
+        return real_openat(dirfd, path, flags);
+    }
     intercept_open(path, flags)
 }
 
