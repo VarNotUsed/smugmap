@@ -9,16 +9,14 @@ fn is_magic(fd: i32) -> bool {
 }
 
 unsafe fn real_open(path: *const libc::c_char, flags: c_int, mode: mode_t) -> c_int {
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"open".as_ptr());
+    // Use open64 — the symbol Rust stdlib actually calls on 64-bit Linux
+    let sym = libc::dlsym(libc::RTLD_NEXT, c"open64".as_ptr());
     let f: unsafe extern "C" fn(*const libc::c_char, c_int, mode_t) -> c_int =
         std::mem::transmute(sym);
     f(path, flags, mode)
 }
 
-// no varargs (stable Rust), mode defaults to 0o666 on passthrough
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int {
+unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => return real_open(path, flags, 0o666),
@@ -57,6 +55,21 @@ pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int 
     );
     fd
 }
+
+// no varargs (stable Rust), mode defaults to 0o666 on passthrough
+// Both open and open64 intercepted — Rust stdlib calls open64 on 64-bit Linux
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn open(path: *const libc::c_char, flags: c_int) -> c_int {
+    intercept_open(path, flags)
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn open64(path: *const libc::c_char, flags: c_int) -> c_int {
+    intercept_open(path, flags)
+}
+
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
