@@ -18,7 +18,7 @@ docker-build:
 
 test-linux: docker-build
 	docker run --rm \
-		--sysctl vm.unprivileged_userfaultfd=1 \
+		--privileged \
 		-v "$(CURDIR):/smugmap" \
 		-v smugmap-cargo-cache:/usr/local/cargo/registry \
 		-v smugmap-target:/smugmap/target \
