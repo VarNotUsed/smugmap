@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-import http.server, os, sys
+import http.server, os, sys, urllib.parse
 
 class RangeHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
+
+    def translate_path(self, path):
+        # Use URL path as an absolute filesystem path (strip query/fragment first)
+        path = urllib.parse.urlparse(path).path
+        path = urllib.parse.unquote(path)
+        return path
 
     def do_HEAD(self):
         path = self.translate_path(self.path)
