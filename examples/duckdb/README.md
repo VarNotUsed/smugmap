@@ -3,6 +3,8 @@
 Run analytical queries on a Parquet file in S3 — DuckDB reads only the column
 chunks it needs, smugmap fetches only those bytes.
 
+> **Read-only.** Works for `SELECT` over Parquet or attached `.duckdb` files. `COPY ... TO`, `CREATE TABLE`, and other writes will fail — smugmap rejects write-mode opens with `EROFS`.
+
 ## Quick start
 
 ```sh

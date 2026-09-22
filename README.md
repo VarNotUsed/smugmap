@@ -122,7 +122,7 @@ SMUGMAP_CONFIG=/tmp/config.json LD_PRELOAD=smugmap.so \
   sqlite3 /remote/analytics.db "SELECT ..."
 ```
 
-A point query on a 50 GB database reads a handful of B-tree pages — that's the download.
+A point query on a 50 GB database reads a handful of B-tree pages — that's the download. **Read-only** — INSERTs/UPDATEs are rejected; SQLite handles this gracefully and falls back to read-only mode.
 
 ### Geospatial
 

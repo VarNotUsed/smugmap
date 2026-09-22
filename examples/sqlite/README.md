@@ -2,6 +2,8 @@
 
 Query a SQLite database stored in S3 — no download, no code changes, just LD_PRELOAD.
 
+> **Read-only.** `INSERT`/`UPDATE`/`DELETE` will fail with `attempt to write a readonly database`. sqlite3 automatically opens the file read-only when it sees smugmap reject the write-mode open.
+
 ## Quick start
 
 ```sh
