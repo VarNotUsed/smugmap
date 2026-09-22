@@ -15,6 +15,7 @@ pub(crate) struct FileState {
     pub url: String,
     pub size: u64,
     pub readahead: usize,
+    pub offset: u64,
     pub mmap_ptr: usize,
     pub mmap_len: usize,
 }

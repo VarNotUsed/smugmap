@@ -1,4 +1,11 @@
 use libc::{c_int, c_void, mode_t, off_t, size_t, ssize_t};
+
+#[cfg(target_os = "linux")]
+fn set_errno(e: c_int) {
+    unsafe { *libc::__errno_location() = e };
+}
+#[cfg(not(target_os = "linux"))]
+fn set_errno(_: c_int) {}
 use std::ffi::CStr;
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -55,6 +62,7 @@ unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
             url: entry.url.clone(),
             size,
             readahead: entry.readahead,
+            offset: 0,
             mmap_ptr: 0,
             mmap_len: 0,
         },
@@ -232,4 +240,87 @@ pub unsafe extern "C" fn munmap(addr: *mut c_void, length: size_t) -> c_int {
     let sym = libc::dlsym(libc::RTLD_NEXT, c"munmap".as_ptr());
     let f: unsafe extern "C" fn(*mut c_void, size_t) -> c_int = std::mem::transmute(sym);
     f(addr, length)
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
+    if !is_magic(fd) {
+        let sym = libc::dlsym(libc::RTLD_NEXT, c"read".as_ptr());
+        let f: unsafe extern "C" fn(c_int, *mut c_void, size_t) -> ssize_t =
+            std::mem::transmute(sym);
+        return f(fd, buf, count);
+    }
+
+    let (url, offset, size) = {
+        let files = crate::files().lock().unwrap();
+        match files.get(&fd) {
+            Some(s) => (s.url.clone(), s.offset, s.size),
+            None => return 0,
+        }
+    };
+
+    if offset >= size {
+        return 0; // EOF
+    }
+    let count = count.min((size - offset) as usize);
+    let end = offset + count as u64 - 1;
+
+    match crate::http::fetch_range(&url, offset, end) {
+        Ok(data) => {
+            let n = data.len().min(count);
+            std::ptr::copy_nonoverlapping(data.as_ptr(), buf as *mut u8, n);
+            if let Some(s) = crate::files().lock().unwrap().get_mut(&fd) {
+                s.offset += n as u64;
+            }
+            n as ssize_t
+        }
+        Err(e) => {
+            if !crate::quiet() {
+                eprintln!("[smugmap] read fetch failed: {e}");
+            }
+            -1
+        }
+    }
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lseek(fd: c_int, offset: off_t, whence: c_int) -> off_t {
+    if !is_magic(fd) {
+        let sym = libc::dlsym(libc::RTLD_NEXT, c"lseek".as_ptr());
+        let f: unsafe extern "C" fn(c_int, off_t, c_int) -> off_t = std::mem::transmute(sym);
+        return f(fd, offset, whence);
+    }
+
+    let mut files = crate::files().lock().unwrap();
+    let Some(state) = files.get_mut(&fd) else {
+        let sym = libc::dlsym(libc::RTLD_NEXT, c"lseek".as_ptr());
+        let f: unsafe extern "C" fn(c_int, off_t, c_int) -> off_t = std::mem::transmute(sym);
+        return f(fd, offset, whence);
+    };
+
+    let new_offset = match whence {
+        libc::SEEK_SET => offset,
+        libc::SEEK_CUR => state.offset as i64 + offset,
+        libc::SEEK_END => state.size as i64 + offset,
+        _ => {
+            set_errno(libc::EINVAL);
+            return -1;
+        }
+    };
+
+    if new_offset < 0 {
+        set_errno(libc::EINVAL);
+        return -1;
+    }
+
+    state.offset = new_offset as u64;
+    new_offset as off_t
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lseek64(fd: c_int, offset: off_t, whence: c_int) -> off_t {
+    lseek(fd, offset, whence)
 }
