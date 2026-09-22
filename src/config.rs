@@ -53,6 +53,13 @@ pub fn global() -> Option<&'static Config> {
         .get_or_init(|| {
             IN_INIT.with(|f| f.set(true));
             let result = (|| {
+                // Inline JSON wins if set — no temp file needed. Useful for wrappers
+                // that construct the config in memory (smugmap-node, @smugmap/cdk).
+                if let Ok(json) = std::env::var("SMUGMAP_CONFIG_JSON") {
+                    return Config::from_str(&json)
+                        .map_err(|e| eprintln!("[smugmap] invalid SMUGMAP_CONFIG_JSON: {e}"))
+                        .ok();
+                }
                 let path = std::env::var("SMUGMAP_CONFIG").ok()?;
                 let s = std::fs::read_to_string(&path)
                     .map_err(|e| eprintln!("[smugmap] cannot read config {path}: {e}"))

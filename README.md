@@ -81,12 +81,13 @@ sudo make install
 
 ### Environment variables
 
-| Variable                                                        | Purpose                                    |
-|-----------------------------------------------------------------|--------------------------------------------|
-| `SMUGMAP_CONFIG`                                                | Path to the JSON config file               |
-| `SMUGMAP_QUIET`                                                 | Set to `1` to suppress `[smugmap]` logs    |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION`    | Used to sign `s3://` URLs                  |
-| `AWS_SESSION_TOKEN`                                             | Added to SigV4 signing when present        |
+| Variable                                                        | Purpose                                             |
+|-----------------------------------------------------------------|-----------------------------------------------------|
+| `SMUGMAP_CONFIG_JSON`                                           | Inline JSON config (wins over `SMUGMAP_CONFIG`)     |
+| `SMUGMAP_CONFIG`                                                | Path to the JSON config file                        |
+| `SMUGMAP_QUIET`                                                 | Set to `1` to suppress `[smugmap]` logs             |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION`    | Used to sign `s3://` URLs                           |
+| `AWS_SESSION_TOKEN`                                             | Added to SigV4 signing when present                 |
 
 ### URL modes
 
@@ -97,6 +98,13 @@ sudo make install
   ```
 
 > ⚠️ Config files may contain presigned URLs. Protect them with `chmod 600`.
+
+For programmatic setups (Lambda handlers, wrapper scripts) you can skip the file entirely and pass the JSON inline:
+
+    SMUGMAP_CONFIG_JSON='[{"pattern":"*.db","url":"s3://my-bucket/db"}]' \
+    LD_PRELOAD=./smugmap.so sqlite3 /remote/db "SELECT ..."
+
+`SMUGMAP_CONFIG_JSON` takes precedence over `SMUGMAP_CONFIG` when both are set.
 
 ## 💡 Use Cases
 
