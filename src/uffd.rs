@@ -124,12 +124,11 @@ mod linux {
                             PAGE_SIZE,
                             true,
                         );
-                        if i == 0 {
-                            if let Err(e) = result {
-                                if !crate::quiet() {
-                                    eprintln!("[smugmap] UFFDIO_COPY failed: {e}");
-                                }
-                            }
+                        if i == 0
+                            && let Err(e) = result
+                            && !crate::quiet()
+                        {
+                            eprintln!("[smugmap] UFFDIO_COPY failed: {e}");
                         }
                         // readahead pages: best-effort, errors already ignored via let _
                     }
