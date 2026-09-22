@@ -7,6 +7,8 @@ license = "MIT"
 repository = "https://github.com/VarNotUsed/smugmap"
 keywords = ["s3", "mmap", "ld-preload", "lambda", "streaming"]
 categories = ["filesystem", "os"]
+readme = "README.md"
+exclude = [".claude/", ".github/", "Dockerfile.dev", "docs/"]
 
 [lib]
 name = "smugmap"
