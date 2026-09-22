@@ -26,9 +26,6 @@ pub(crate) fn files() -> &'static Mutex<HashMap<i32, FileState>> {
     FILES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-// Magic fd base — high enough to not collide with real fds
-pub(crate) const MAGIC_FD_BASE: i32 = 0x00534d47_u32 as i32;
-
 pub(crate) fn quiet() -> bool {
     std::env::var("SMUGMAP_QUIET").as_deref() == Ok("1")
 }

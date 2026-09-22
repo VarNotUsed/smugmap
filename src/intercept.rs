@@ -1,5 +1,4 @@
 use std::ffi::CStr;
-use std::sync::atomic::{AtomicI32, Ordering};
 
 use libc::{c_int, c_void, mode_t, off_t, size_t, ssize_t};
 
@@ -24,10 +23,10 @@ fn set_errno(e: c_int) {
 #[cfg(not(target_os = "linux"))]
 fn set_errno(_: c_int) {}
 
-static NEXT_FD: AtomicI32 = AtomicI32::new(crate::MAGIC_FD_BASE);
-
+// locks the global files map on every read/pread/close/mmap even for
+// non-magic fds. Swap for RwLock or a lock-free set if hot-path contention shows up.
 fn is_magic(fd: i32) -> bool {
-    fd >= crate::MAGIC_FD_BASE
+    fd >= 0 && crate::files().lock().unwrap().contains_key(&fd)
 }
 
 unsafe fn real_openat(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
@@ -76,7 +75,12 @@ unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
         }
     };
 
-    let fd = NEXT_FD.fetch_add(1, Ordering::Relaxed);
+    // Real /dev/null fd — kernel-valid, so Rust's IoSafety, fcntl, close all work.
+    // Our shim recognizes it via presence in the files map, not the fd number.
+    let fd = real_open(c"/dev/null".as_ptr(), libc::O_RDONLY, 0);
+    if fd < 0 {
+        return -1;
+    }
     crate::files().lock().unwrap().insert(
         fd,
         crate::FileState {
@@ -251,9 +255,7 @@ pub unsafe extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssi
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn close(fd: c_int) -> c_int {
-    if crate::files().lock().unwrap().remove(&fd).is_some() {
-        return 0;
-    }
+    crate::files().lock().unwrap().remove(&fd);
     call_real!("close", unsafe extern "C" fn(c_int) -> c_int, fd)
 }
 
