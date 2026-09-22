@@ -1,0 +1,17 @@
+#!/bin/sh
+# Mirror of the CI checks in .github/workflows/ci.yml — catches
+# formatting/clippy regressions locally so they never hit main.
+# Install with: make install-hooks
+
+set -e
+
+echo "▶ cargo fmt --check"
+cargo fmt --check
+
+echo "▶ cargo clippy -- -D warnings"
+cargo clippy -- -D warnings
+
+echo "▶ cargo test"
+cargo test
+
+echo "✓ all checks passed"

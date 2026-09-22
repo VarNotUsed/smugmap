@@ -1,4 +1,4 @@
-.PHONY: build test test-linux docker-build clean clean-linux install
+.PHONY: build test test-linux docker-build clean clean-linux install install-hooks check
 
 INSTALL_DIR ?= /usr/local/lib
 
@@ -41,3 +41,14 @@ install:
 
 clean:
 	cargo clean
+
+# Run the same checks CI does — fmt, clippy, unit tests
+check:
+	cargo fmt --check
+	cargo clippy -- -D warnings
+	cargo test
+
+# Point git at .githooks/ so pre-push runs `make check` automatically
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo "hooks installed — pre-push will now run fmt/clippy/test"
