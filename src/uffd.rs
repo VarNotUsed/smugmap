@@ -49,9 +49,7 @@ mod linux {
         readahead: usize,
     ) -> Result<(), String> {
         let uffd = uffd();
-        unsafe {
-            uffd.register(ptr, len).map_err(|e| e.to_string())?;
-        }
+        uffd.register(ptr, len).map_err(|e| e.to_string())?;
         REGIONS.lock().unwrap().insert(
             ptr as usize,
             Region {
@@ -67,7 +65,7 @@ mod linux {
         // Only unregister if uffd was already initialized — avoids eager init on munmap
         if let Some(u) = UFFD.get() {
             REGIONS.lock().unwrap().remove(&(ptr as usize));
-            let _ = unsafe { u.0.unregister(ptr, len) };
+            let _ = u.0.unregister(ptr, len);
         }
     }
 

@@ -133,7 +133,7 @@ pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
             *stat = std::mem::zeroed();
             (*stat).st_size = state.size as libc::off_t;
             (*stat).st_mode = libc::S_IFREG | 0o444;
-            (*stat).st_blksize = PREFERRED_IO_BLOCK;
+            (*stat).st_blksize = PREFERRED_IO_BLOCK as libc::blksize_t;
             (*stat).st_blocks = (state.size / STAT_BLOCK_SIZE + 1) as libc::blkcnt_t;
             return 0;
         }
