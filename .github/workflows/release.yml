@@ -53,4 +53,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if cargo publish 2>&1 | tee /tmp/publish.log; then
+            exit 0
+          fi
+          if grep -q "already exists on crates.io" /tmp/publish.log; then
+            echo "Version already published — nothing to do."
+            exit 0
+          fi
+          exit 1
