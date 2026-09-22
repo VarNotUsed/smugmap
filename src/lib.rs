@@ -8,6 +8,7 @@ static A: System = System;
 pub(crate) mod config;
 pub(crate) mod http;
 pub(crate) mod intercept;
+pub(crate) mod sigv4;
 pub(crate) mod uffd;
 
 pub(crate) struct FileState {

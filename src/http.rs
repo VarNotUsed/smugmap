@@ -7,8 +7,13 @@ thread_local! {
 }
 
 pub fn head_size(url: &str) -> Result<u64, String> {
+    let (url, extra) = crate::sigv4::prepare("HEAD", url)?;
     AGENT.with(|a| {
-        let resp = a.head(url).call().map_err(|e| e.to_string())?;
+        let mut req = a.head(&url);
+        for (k, v) in &extra {
+            req = req.set(k, v);
+        }
+        let resp = req.call().map_err(|e| e.to_string())?;
         resp.header("content-length")
             .and_then(|v| v.parse().ok())
             .ok_or_else(|| "no content-length in HEAD response".into())
@@ -16,12 +21,13 @@ pub fn head_size(url: &str) -> Result<u64, String> {
 }
 
 pub fn fetch_range(url: &str, start: u64, end: u64) -> Result<Vec<u8>, String> {
+    let (url, extra) = crate::sigv4::prepare("GET", url)?;
     AGENT.with(|a| {
-        let resp = a
-            .get(url)
-            .set("Range", &format!("bytes={start}-{end}"))
-            .call()
-            .map_err(|e| e.to_string())?;
+        let mut req = a.get(&url).set("Range", &format!("bytes={start}-{end}"));
+        for (k, v) in &extra {
+            req = req.set(k, v);
+        }
+        let resp = req.call().map_err(|e| e.to_string())?;
         let mut buf = Vec::new();
         resp.into_reader()
             .read_to_end(&mut buf)
