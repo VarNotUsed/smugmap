@@ -1,6 +1,6 @@
 [package]
 name = "smugmap"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Demand-page S3 files into any binary via LD_PRELOAD — works where FUSE can't"
 license = "MIT"
