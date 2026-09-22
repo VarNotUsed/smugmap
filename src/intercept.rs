@@ -1,4 +1,21 @@
+use std::ffi::CStr;
+use std::sync::atomic::{AtomicI32, Ordering};
+
 use libc::{c_int, c_void, mode_t, off_t, size_t, ssize_t};
+
+// POSIX stat(2) counts blocks in 512-byte units regardless of filesystem block size.
+const STAT_BLOCK_SIZE: u64 = 512;
+// Hint to callers for efficient sequential I/O; matches typical page/cluster size.
+const PREFERRED_IO_BLOCK: i32 = 4096;
+
+macro_rules! call_real {
+    ($sym:literal, $ty:ty, $($arg:expr),*) => {{
+        let f: $ty = std::mem::transmute(
+            libc::dlsym(libc::RTLD_NEXT, concat!($sym, "\0").as_ptr() as *const libc::c_char)
+        );
+        f($($arg),*)
+    }};
+}
 
 #[cfg(target_os = "linux")]
 fn set_errno(e: c_int) {
@@ -6,8 +23,6 @@ fn set_errno(e: c_int) {
 }
 #[cfg(not(target_os = "linux"))]
 fn set_errno(_: c_int) {}
-use std::ffi::CStr;
-use std::sync::atomic::{AtomicI32, Ordering};
 
 static NEXT_FD: AtomicI32 = AtomicI32::new(crate::MAGIC_FD_BASE);
 
@@ -16,17 +31,23 @@ fn is_magic(fd: i32) -> bool {
 }
 
 unsafe fn real_openat(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"openat".as_ptr());
-    let f: unsafe extern "C" fn(c_int, *const libc::c_char, c_int) -> c_int =
-        std::mem::transmute(sym);
-    f(dirfd, path, flags)
+    call_real!(
+        "openat",
+        unsafe extern "C" fn(c_int, *const libc::c_char, c_int) -> c_int,
+        dirfd,
+        path,
+        flags
+    )
 }
 
 unsafe fn real_open(path: *const libc::c_char, flags: c_int, mode: mode_t) -> c_int {
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"open64".as_ptr());
-    let f: unsafe extern "C" fn(*const libc::c_char, c_int, mode_t) -> c_int =
-        std::mem::transmute(sym);
-    f(path, flags, mode)
+    call_real!(
+        "open64",
+        unsafe extern "C" fn(*const libc::c_char, c_int, mode_t) -> c_int,
+        path,
+        flags,
+        mode
+    )
 }
 
 unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
@@ -87,7 +108,7 @@ pub unsafe extern "C" fn open64(path: *const libc::c_char, flags: c_int) -> c_in
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn openat(dirfd: c_int, path: *const libc::c_char, flags: c_int) -> c_int {
-    // Only intercept absolute paths opened relative to CWD; pass through fd-relative opens
+    // Only intercept CWD-relative opens; pass through fd-relative opens
     if dirfd != libc::AT_FDCWD {
         return real_openat(dirfd, path, flags);
     }
@@ -112,14 +133,17 @@ pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
             *stat = std::mem::zeroed();
             (*stat).st_size = state.size as libc::off_t;
             (*stat).st_mode = libc::S_IFREG | 0o444;
-            (*stat).st_blksize = 4096;
-            (*stat).st_blocks = (state.size / 512 + 1) as libc::blkcnt_t;
+            (*stat).st_blksize = PREFERRED_IO_BLOCK;
+            (*stat).st_blocks = (state.size / STAT_BLOCK_SIZE + 1) as libc::blkcnt_t;
             return 0;
         }
     }
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"fstat".as_ptr());
-    let f: unsafe extern "C" fn(c_int, *mut libc::stat) -> c_int = std::mem::transmute(sym);
-    f(fd, stat)
+    call_real!(
+        "fstat",
+        unsafe extern "C" fn(c_int, *mut libc::stat) -> c_int,
+        fd,
+        stat
+    )
 }
 
 #[cfg(not(test))]
@@ -131,19 +155,27 @@ pub unsafe extern "C" fn pread(
     offset: off_t,
 ) -> ssize_t {
     if !is_magic(fd) {
-        let sym = libc::dlsym(libc::RTLD_NEXT, c"pread".as_ptr());
-        let f: unsafe extern "C" fn(c_int, *mut c_void, size_t, off_t) -> ssize_t =
-            std::mem::transmute(sym);
-        return f(fd, buf, count, offset);
+        return call_real!(
+            "pread",
+            unsafe extern "C" fn(c_int, *mut c_void, size_t, off_t) -> ssize_t,
+            fd,
+            buf,
+            count,
+            offset
+        );
     }
 
     let url = match crate::files().lock().unwrap().get(&fd) {
         Some(s) => s.url.clone(),
         None => {
-            let sym = libc::dlsym(libc::RTLD_NEXT, c"pread".as_ptr());
-            let f: unsafe extern "C" fn(c_int, *mut c_void, size_t, off_t) -> ssize_t =
-                std::mem::transmute(sym);
-            return f(fd, buf, count, offset);
+            return call_real!(
+                "pread",
+                unsafe extern "C" fn(c_int, *mut c_void, size_t, off_t) -> ssize_t,
+                fd,
+                buf,
+                count,
+                offset
+            );
         }
     };
 
@@ -165,13 +197,56 @@ pub unsafe extern "C" fn pread(
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
+    if !is_magic(fd) {
+        return call_real!(
+            "read",
+            unsafe extern "C" fn(c_int, *mut c_void, size_t) -> ssize_t,
+            fd,
+            buf,
+            count
+        );
+    }
+
+    let (url, offset, size) = {
+        let files = crate::files().lock().unwrap();
+        match files.get(&fd) {
+            Some(s) => (s.url.clone(), s.offset, s.size),
+            None => return 0,
+        }
+    };
+
+    if offset >= size {
+        return 0; // EOF
+    }
+    let count = count.min((size - offset) as usize);
+    let end = offset + count as u64 - 1;
+
+    match crate::http::fetch_range(&url, offset, end) {
+        Ok(data) => {
+            let n = data.len().min(count);
+            std::ptr::copy_nonoverlapping(data.as_ptr(), buf as *mut u8, n);
+            if let Some(s) = crate::files().lock().unwrap().get_mut(&fd) {
+                s.offset += n as u64;
+            }
+            n as ssize_t
+        }
+        Err(e) => {
+            if !crate::quiet() {
+                eprintln!("[smugmap] read fetch failed: {e}");
+            }
+            -1
+        }
+    }
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn close(fd: c_int) -> c_int {
     if crate::files().lock().unwrap().remove(&fd).is_some() {
         return 0;
     }
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"close".as_ptr());
-    let f: unsafe extern "C" fn(c_int) -> c_int = std::mem::transmute(sym);
-    f(fd)
+    call_real!("close", unsafe extern "C" fn(c_int) -> c_int, fd)
 }
 
 #[cfg(not(test))]
@@ -191,10 +266,7 @@ pub unsafe extern "C" fn mmap(
         c_int,
         c_int,
         off_t,
-    ) -> *mut c_void = {
-        let sym = libc::dlsym(libc::RTLD_NEXT, c"mmap".as_ptr());
-        std::mem::transmute(sym)
-    };
+    ) -> *mut c_void = std::mem::transmute(libc::dlsym(libc::RTLD_NEXT, c"mmap".as_ptr()));
 
     if !is_magic(fd) {
         return real_mmap(addr, length, prot, flags, fd, offset);
@@ -237,67 +309,36 @@ pub unsafe extern "C" fn mmap(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn munmap(addr: *mut c_void, length: size_t) -> c_int {
     crate::uffd::unregister(addr, length);
-    let sym = libc::dlsym(libc::RTLD_NEXT, c"munmap".as_ptr());
-    let f: unsafe extern "C" fn(*mut c_void, size_t) -> c_int = std::mem::transmute(sym);
-    f(addr, length)
-}
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
-    if !is_magic(fd) {
-        let sym = libc::dlsym(libc::RTLD_NEXT, c"read".as_ptr());
-        let f: unsafe extern "C" fn(c_int, *mut c_void, size_t) -> ssize_t =
-            std::mem::transmute(sym);
-        return f(fd, buf, count);
-    }
-
-    let (url, offset, size) = {
-        let files = crate::files().lock().unwrap();
-        match files.get(&fd) {
-            Some(s) => (s.url.clone(), s.offset, s.size),
-            None => return 0,
-        }
-    };
-
-    if offset >= size {
-        return 0; // EOF
-    }
-    let count = count.min((size - offset) as usize);
-    let end = offset + count as u64 - 1;
-
-    match crate::http::fetch_range(&url, offset, end) {
-        Ok(data) => {
-            let n = data.len().min(count);
-            std::ptr::copy_nonoverlapping(data.as_ptr(), buf as *mut u8, n);
-            if let Some(s) = crate::files().lock().unwrap().get_mut(&fd) {
-                s.offset += n as u64;
-            }
-            n as ssize_t
-        }
-        Err(e) => {
-            if !crate::quiet() {
-                eprintln!("[smugmap] read fetch failed: {e}");
-            }
-            -1
-        }
-    }
+    call_real!(
+        "munmap",
+        unsafe extern "C" fn(*mut c_void, size_t) -> c_int,
+        addr,
+        length
+    )
 }
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lseek(fd: c_int, offset: off_t, whence: c_int) -> off_t {
     if !is_magic(fd) {
-        let sym = libc::dlsym(libc::RTLD_NEXT, c"lseek".as_ptr());
-        let f: unsafe extern "C" fn(c_int, off_t, c_int) -> off_t = std::mem::transmute(sym);
-        return f(fd, offset, whence);
+        return call_real!(
+            "lseek",
+            unsafe extern "C" fn(c_int, off_t, c_int) -> off_t,
+            fd,
+            offset,
+            whence
+        );
     }
 
     let mut files = crate::files().lock().unwrap();
     let Some(state) = files.get_mut(&fd) else {
-        let sym = libc::dlsym(libc::RTLD_NEXT, c"lseek".as_ptr());
-        let f: unsafe extern "C" fn(c_int, off_t, c_int) -> off_t = std::mem::transmute(sym);
-        return f(fd, offset, whence);
+        return call_real!(
+            "lseek",
+            unsafe extern "C" fn(c_int, off_t, c_int) -> off_t,
+            fd,
+            offset,
+            whence
+        );
     };
 
     let new_offset = match whence {

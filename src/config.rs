@@ -1,17 +1,19 @@
+use std::sync::OnceLock;
+
 use glob::Pattern;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
-struct RawEntry {
-    pattern: String,
-    url: String,
-    #[serde(default)]
-    readahead: usize,
+fn deserialize_pattern<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Pattern, D::Error> {
+    let s = String::deserialize(d)?;
+    Pattern::new(&s).map_err(serde::de::Error::custom)
 }
 
+#[derive(Deserialize)]
 pub struct Entry {
+    #[serde(deserialize_with = "deserialize_pattern")]
     pub pattern: Pattern,
     pub url: String,
+    #[serde(default)]
     pub readahead: usize,
 }
 
@@ -21,19 +23,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_str(s: &str) -> Result<Self, String> {
-        let raw: Vec<RawEntry> = serde_json::from_str(s).map_err(|e| e.to_string())?;
-        let entries = raw
-            .into_iter()
-            .map(|r| {
-                Pattern::new(&r.pattern)
-                    .map(|p| Entry {
-                        pattern: p,
-                        url: r.url,
-                        readahead: r.readahead,
-                    })
-                    .map_err(|e| e.to_string())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let entries = serde_json::from_str(s).map_err(|e| e.to_string())?;
         Ok(Config { entries })
     }
 
@@ -45,8 +35,6 @@ impl Config {
         self.entries.iter().find(|e| e.pattern.matches(name))
     }
 }
-
-use std::sync::OnceLock;
 
 static CONFIG: OnceLock<Option<Config>> = OnceLock::new();
 

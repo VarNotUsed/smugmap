@@ -106,7 +106,7 @@ mod linux {
             (base, region.url.clone(), region.readahead)
         };
 
-        let pages_to_fetch = 1 + readahead;
+        let pages_to_fetch = readahead + 1;
 
         for i in 0..pages_to_fetch {
             let target_page = page_addr + i * PAGE_SIZE;

@@ -20,10 +20,10 @@ pub(crate) struct FileState {
     pub mmap_len: usize,
 }
 
-static FILES_INNER: OnceLock<Mutex<HashMap<i32, FileState>>> = OnceLock::new();
+static FILES: OnceLock<Mutex<HashMap<i32, FileState>>> = OnceLock::new();
 
 pub(crate) fn files() -> &'static Mutex<HashMap<i32, FileState>> {
-    FILES_INNER.get_or_init(|| Mutex::new(HashMap::new()))
+    FILES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 // Magic fd base — high enough to not collide with real fds
