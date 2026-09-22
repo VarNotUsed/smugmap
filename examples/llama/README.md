@@ -27,13 +27,13 @@ SMUGMAP_CONFIG=examples/llama/config.json \
   llama-cli -m /tmp/tinyllama.gguf -p "Hello, world" -n 128
 ```
 
-The `readahead: 4` in the config prefetches 4 extra pages per fault, which
+The `"readahead": 4` in the config prefetches 4 extra pages per fault, which
 matches llama.cpp's sequential access pattern through the weight tensors.
 
 ## How it works
 
 smugmap intercepts `open()`, `read()`, and `mmap()` at the libc level. When
-llama.cpp opens `/tmp/model.gguf`, smugmap recognises the filename from the
+llama.cpp opens `/tmp/tinyllama.gguf`, smugmap recognises the filename from the
 config and transparently serves it from S3 via HTTP Range requests — fetching
 only the bytes llama.cpp actually reads. A 7B model (4GB) cold-starts in
 seconds instead of minutes.
