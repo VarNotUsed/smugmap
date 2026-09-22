@@ -150,6 +150,13 @@ pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
     )
 }
 
+// _FILE_OFFSET_BITS=64 C programs (SQLite, DuckDB, ...) resolve to the _64 names
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fstat64(fd: c_int, stat: *mut libc::stat) -> c_int {
+    fstat(fd, stat)
+}
+
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn pread(
@@ -201,6 +208,17 @@ pub unsafe extern "C" fn pread(
             -1
         }
     }
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pread64(
+    fd: c_int,
+    buf: *mut c_void,
+    count: size_t,
+    offset: off_t,
+) -> ssize_t {
+    pread(fd, buf, count, offset)
 }
 
 #[cfg(not(test))]
@@ -317,6 +335,19 @@ pub unsafe extern "C" fn mmap(
     }
 
     ptr
+}
+
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mmap64(
+    addr: *mut c_void,
+    length: size_t,
+    prot: c_int,
+    flags: c_int,
+    fd: c_int,
+    offset: off_t,
+) -> *mut c_void {
+    mmap(addr, length, prot, flags, fd, offset)
 }
 
 #[cfg(not(test))]

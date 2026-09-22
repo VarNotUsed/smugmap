@@ -24,11 +24,14 @@ test-linux: docker-build
 		-v smugmap-target:/smugmap/target \
 		-w /smugmap \
 		smugmap-dev \
-		bash -c "cargo test && cargo build && \
-		  printf 'Hello, smugmap! 0123456789abcdef' > /tmp/smugmap-test-data.bin && \
-		  python3 test/serve.py 8787 & sleep 0.3 && \
-		  printf '[{\"pattern\":\"*.bin\",\"url\":\"http://127.0.0.1:8787/tmp/smugmap-test-data.bin\"}]' > /tmp/smugmap-test.json && \
-		  SMUGMAP_CONFIG=/tmp/smugmap-test.json LD_PRELOAD=target/debug/libsmugmap.so target/debug/selfcheck"
+		bash -euc '\
+		  cargo test; \
+		  cargo build; \
+		  printf "Hello, smugmap! 0123456789abcdef" > /tmp/smugmap-test-data.bin; \
+		  printf "%s" "[{\"pattern\":\"*.bin\",\"url\":\"http://127.0.0.1:8787/tmp/smugmap-test-data.bin\"}]" > /tmp/smugmap-test.json; \
+		  ( python3 test/serve.py 8787 & ); \
+		  sleep 0.5; \
+		  SMUGMAP_CONFIG=/tmp/smugmap-test.json LD_PRELOAD=target/debug/libsmugmap.so target/debug/selfcheck'
 
 clean-linux:
 	docker volume rm -f smugmap-cargo-cache smugmap-target
