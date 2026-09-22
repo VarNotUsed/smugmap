@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::sync::OnceLock;
 
 use glob::Pattern;
@@ -38,16 +39,30 @@ impl Config {
 
 static CONFIG: OnceLock<Option<Config>> = OnceLock::new();
 
+thread_local! {
+    // Guards against re-entering global() from the open() our own config load triggers.
+    // Without it, OnceLock::get_or_init deadlocks on the same thread.
+    static IN_INIT: Cell<bool> = const { Cell::new(false) };
+}
+
 pub fn global() -> Option<&'static Config> {
+    if IN_INIT.with(|f| f.get()) {
+        return None;
+    }
     CONFIG
         .get_or_init(|| {
-            let path = std::env::var("SMUGMAP_CONFIG").ok()?;
-            let s = std::fs::read_to_string(&path)
-                .map_err(|e| eprintln!("[smugmap] cannot read config {path}: {e}"))
-                .ok()?;
-            Config::from_str(&s)
-                .map_err(|e| eprintln!("[smugmap] invalid config {path}: {e}"))
-                .ok()
+            IN_INIT.with(|f| f.set(true));
+            let result = (|| {
+                let path = std::env::var("SMUGMAP_CONFIG").ok()?;
+                let s = std::fs::read_to_string(&path)
+                    .map_err(|e| eprintln!("[smugmap] cannot read config {path}: {e}"))
+                    .ok()?;
+                Config::from_str(&s)
+                    .map_err(|e| eprintln!("[smugmap] invalid config {path}: {e}"))
+                    .ok()
+            })();
+            IN_INIT.with(|f| f.set(false));
+            result
         })
         .as_ref()
 }
