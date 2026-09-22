@@ -13,16 +13,11 @@ cargo build --release
 curl -L https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf \
   | aws s3 cp - s3://your-bucket/tinyllama.gguf
 
-# 3. Set your bucket in config.json
-#    [{"pattern":"*.gguf","url":"s3://your-bucket/tinyllama.gguf","readahead":4}]
+# 3. Set credentials
+export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=eu-central-1
 
-# 4. Set credentials
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-export AWS_REGION=eu-central-1   # optional, default: us-east-1
-
-# 5. Run inference
-SMUGMAP_CONFIG=examples/llama/config.json \
+# 4. Run inference
+SMUGMAP_CONFIG_JSON='[{"pattern":"*.gguf","url":"s3://your-bucket/tinyllama.gguf","readahead":4}]' \
   LD_PRELOAD=./target/release/libsmugmap.so \
   llama-cli -m /tmp/tinyllama.gguf -p "Hello, world" -n 128
 ```

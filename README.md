@@ -32,13 +32,8 @@ No FUSE. No kernel module. No root.
 # 1. Configure AWS credentials (any standard method works)
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=eu-central-1
 
-# 2. Point smugmap at your S3 object
-cat > /tmp/smugmap.json <<'EOF'
-[{"pattern":"*.db","url":"s3://my-bucket/analytics.db"}]
-EOF
-
-# 3. Run any binary — smugmap intercepts the reads
-SMUGMAP_CONFIG=/tmp/smugmap.json \
+# 2. Run any binary — smugmap intercepts the reads
+SMUGMAP_CONFIG_JSON='[{"pattern":"*.db","url":"s3://my-bucket/analytics.db"}]' \
 LD_PRELOAD=/usr/local/lib/smugmap.so \
   sqlite3 /remote/analytics.db "SELECT count(*) FROM events"
 ```
