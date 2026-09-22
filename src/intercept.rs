@@ -95,7 +95,6 @@ pub unsafe extern "C" fn openat64(dirfd: c_int, path: *const libc::c_char, flags
     intercept_open(path, flags)
 }
 
-
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fstat(fd: c_int, stat: *mut libc::stat) -> c_int {
@@ -159,7 +158,9 @@ pub unsafe extern "C" fn pread(
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn close(fd: c_int) -> c_int {
-    crate::files().lock().unwrap().remove(&fd);
+    if crate::files().lock().unwrap().remove(&fd).is_some() {
+        return 0;
+    }
     let sym = libc::dlsym(libc::RTLD_NEXT, c"close".as_ptr());
     let f: unsafe extern "C" fn(c_int) -> c_int = std::mem::transmute(sym);
     f(fd)

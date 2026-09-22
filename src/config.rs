@@ -26,7 +26,11 @@ impl Config {
             .into_iter()
             .map(|r| {
                 Pattern::new(&r.pattern)
-                    .map(|p| Entry { pattern: p, url: r.url, readahead: r.readahead })
+                    .map(|p| Entry {
+                        pattern: p,
+                        url: r.url,
+                        readahead: r.readahead,
+                    })
                     .map_err(|e| e.to_string())
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -47,15 +51,17 @@ use std::sync::OnceLock;
 static CONFIG: OnceLock<Option<Config>> = OnceLock::new();
 
 pub fn global() -> Option<&'static Config> {
-    CONFIG.get_or_init(|| {
-        let path = std::env::var("SMUGMAP_CONFIG").ok()?;
-        let s = std::fs::read_to_string(&path)
-            .map_err(|e| eprintln!("[smugmap] cannot read config {path}: {e}"))
-            .ok()?;
-        Config::from_str(&s)
-            .map_err(|e| eprintln!("[smugmap] invalid config {path}: {e}"))
-            .ok()
-    }).as_ref()
+    CONFIG
+        .get_or_init(|| {
+            let path = std::env::var("SMUGMAP_CONFIG").ok()?;
+            let s = std::fs::read_to_string(&path)
+                .map_err(|e| eprintln!("[smugmap] cannot read config {path}: {e}"))
+                .ok()?;
+            Config::from_str(&s)
+                .map_err(|e| eprintln!("[smugmap] invalid config {path}: {e}"))
+                .ok()
+        })
+        .as_ref()
 }
 
 #[cfg(test)]

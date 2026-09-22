@@ -8,7 +8,7 @@ fn main() {
 
     let mut buf = [0u8; 5];
     f.read_exact(&mut buf).expect("read bytes");
-    assert_eq!(&buf, b"Hello", "expected 'Hello', got {:?}", &buf);
+    assert_eq!(&buf, b"Hello", "expected 'Hello', got {:?}", buf);
 
     println!("selfcheck: PASS");
 }

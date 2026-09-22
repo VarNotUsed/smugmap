@@ -52,10 +52,14 @@ mod linux {
         unsafe {
             uffd.register(ptr, len).map_err(|e| e.to_string())?;
         }
-        REGIONS
-            .lock()
-            .unwrap()
-            .insert(ptr as usize, Region { url, readahead, len });
+        REGIONS.lock().unwrap().insert(
+            ptr as usize,
+            Region {
+                url,
+                readahead,
+                len,
+            },
+        );
         Ok(())
     }
 
