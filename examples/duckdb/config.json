@@ -1,0 +1,1 @@
+[{"pattern":"*.parquet","url":"s3://YOUR-BUCKET/demo.parquet"}]
