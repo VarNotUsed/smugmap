@@ -195,7 +195,7 @@ Everything else falls through to the real libc.
 ## ⚠️ Limitations
 
 - **Linux only** — `userfaultfd` is a Linux kernel feature.
-- **Read-only** — writes fall through to the underlying filesystem.
+- **Read-only** — write opens (`O_WRONLY`, `O_RDWR`) are rejected with `EROFS`. SQLite, DuckDB, and other well-behaved tools transparently fall back to read-only mode.
 - **Not for full scans** — every fault is a network round trip; use `aws s3 cp` if you'll read the whole file.
 - **Needs `vm.unprivileged_userfaultfd=1`** — the default on modern kernels and Lambda ARM64.
 

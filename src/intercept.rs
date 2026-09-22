@@ -65,6 +65,14 @@ unsafe fn intercept_open(path: *const libc::c_char, flags: c_int) -> c_int {
         None => return real_open(path, flags, 0o666),
     };
 
+    // smugmap is read-only. Reject write opens with EROFS so callers get a clear
+    // signal instead of silently losing writes to the underlying /dev/null fd.
+    // Well-behaved tools (sqlite3, duckdb) retry with O_RDONLY on EROFS.
+    if flags & (libc::O_WRONLY | libc::O_RDWR) != 0 {
+        set_errno(libc::EROFS);
+        return -1;
+    }
+
     let size = match crate::http::head_size(&entry.url) {
         Ok(s) => s,
         Err(e) => {
