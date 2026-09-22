@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Demand-page S3 files into any binary via LD_PRELOAD — works where FUSE can't"
 license = "MIT"
-repository = "https://github.com/YOUR_USER/smugmap"
+repository = "https://github.com/VarNotUsed/smugmap"
 keywords = ["s3", "mmap", "ld-preload", "lambda", "streaming"]
 categories = ["filesystem", "os"]
 

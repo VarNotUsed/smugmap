@@ -165,6 +165,10 @@ pub unsafe extern "C" fn pread(
         );
     }
 
+    if count == 0 {
+        return 0;
+    }
+
     let url = match crate::files().lock().unwrap().get(&fd) {
         Some(s) => s.url.clone(),
         None => {
@@ -206,6 +210,10 @@ pub unsafe extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssi
             buf,
             count
         );
+    }
+
+    if count == 0 {
+        return 0;
     }
 
     let (url, offset, size) = {
@@ -294,7 +302,11 @@ pub unsafe extern "C" fn mmap(
         if !crate::quiet() {
             eprintln!("[smugmap] uffd register failed: {e}");
         }
-        // pread() fallback still works for non-mmap access
+        let munmap_fn: unsafe extern "C" fn(*mut c_void, size_t) -> c_int =
+            std::mem::transmute(libc::dlsym(libc::RTLD_NEXT, c"munmap".as_ptr()));
+        munmap_fn(ptr, length);
+        set_errno(libc::EIO);
+        return libc::MAP_FAILED;
     }
 
     if let Some(state) = crate::files().lock().unwrap().get_mut(&fd) {
