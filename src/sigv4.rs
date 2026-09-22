@@ -57,7 +57,7 @@ fn now_datetime() -> (String, String) {
 
 fn epoch_to_ymd(z: u64) -> (u64, u64, u64) {
     // Howard Hinnant's civil calendar algorithm
-    let z = z as i64 + 719468;
+    let z = z as i64 + 719468; // shift Unix epoch (1970-01-01) to civil epoch (0000-03-01)
     let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
     let doe = (z - era * 146097) as u64;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
